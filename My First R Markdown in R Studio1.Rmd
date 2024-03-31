@@ -1,0 +1,104 @@
+---
+title: "My First R"
+author: "Bharath Reddy Chada"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,message=F)
+
+library(dplyr)
+library(ggplot2)
+```
+
+## Linear Regression
+
+```{r data}
+d= read.csv('ProstateData.csv')
+str(d)
+```
+#Loads a dataset named ProstateData.csv into d and prints its structure using str(d), giving an overview of the data's dimensions and variables.
+```{r categorical}
+d=d%>%
+  mutate(svi=factor(svi,label=c("svi0","svi1")))
+str(d)
+```
+#Converts the svi variable to a factor, labeling its levels as "svi0" and "svi1", and then checks the structure again to confirm the change.
+```{r cat1}
+contrasts(d$svi)
+```
+#Displays the contrasts set for the svi factor. This is important for understanding how R will encode this variable in models.
+```{r dist}
+d %>%
+  ggplot(aes(sample= lpsa)) +
+  geom_qq()
+```
+#Plots a Q-Q plot of the lpsa variable to check for normality in its distribution, which is crucial for assumptions in linear regression.
+```{r relationships}
+d %>%
+  select(-svi, -train) %>%
+  cor()
+
+
+```
+#Computes and displays the correlation matrix for all variables except svi and train, helping to identify potential predictors for the model.
+```{r}
+d %>%
+  ggplot(aes(x=svi, y=lpsa, fill = svi))+
+geom_boxplot()
+
+```
+#Visualizes the relationship between svi and lpsa through a boxplot, providing insight into differences in lpsa values across groups defined by svi.
+```{r statTest}
+library(broom)
+d %>%
+  do(tidy(t.test(lpsa~svi, data= .))) %>%
+  select(p.value)
+
+```
+#Conducts a t-test to compare lpsa values across the two levels of svi, reporting the p-value. This can help justify including svi as a predictor in the model.
+```{r splitData}
+
+trainD = d %>%
+  filter(train==T) %>%
+  select(-train)
+testD = d %>%
+  filter(train==F) %>%
+  select(-train)
+
+
+```
+#Separates the dataset into training (trainD) and testing (testD) subsets based on the train variable. This is a standard approach for model validation.
+```{r buildingModel}
+library(leaps)
+
+model = regsubsets(lpsa ~ . , data = trainD, method = "forward")
+
+summary(model)
+
+```
+#Uses the leaps package to perform a forward selection regression, identifying a subset of predictors for lpsa. This process helps in model selection by evaluating combinations of predictors based on predefined criteria (here, likely AIC, BIC, or adjusted R-squared).
+#While forward selection is computationally efficient and practical for datasets with a large number of variables, it may not always identify the best model. Exhaustive search, on the other hand, guarantees the identification of the best model according to the chosen criterion but can be computationally prohibitive and may increase the risk of overfitting due to its comprehensive evaluation of all possible models. The choice between these methods depends on the specific context, including the size of the dataset, the number of predictors, and computational resources available.
+```{r modelMetrics}
+#view adjusted R-squared value of each model
+summary(model)$adjr2
+
+```
+#Extracts and displays the adjusted R-squared values and residual sum of squares (RSS) for models generated in the forward selection process. These metrics help evaluate model fit and complexity.
+```{r modelMetrics2}
+summary(model)$rss
+
+```
+#Finds the model with the highest adjusted R-squared value, suggesting this model has the best balance of complexity and fit.
+```{r maxMetric}
+modelSum = summary(model)
+which.max(modelSum$adjr2)
+
+
+```
+
+```{r modelCoef}
+coef(model,which.max(modelSum$adjr2))
+```
+#Retrieves the coefficients of the best model, which are crucial for interpreting the model's predictions and understanding the relationship between predictors and the outcome variable.
